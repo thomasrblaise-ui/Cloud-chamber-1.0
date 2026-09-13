@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      background: #0a0f19;
+      color: #e2e8f0;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .ui-panel {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      background: #1e293b;
+      padding: 10px 16px;
+      border-radius: 8px;
+    }
+    button, select {
+      background: #334155;
+      color: #fff;
+      border: 1px solid #475569;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover, select:hover { background: #475569; }
+    input[type=range] { vertical-align: middle; }
+    #canvas-container { border-radius: 8px; overflow: hidden; }
+    .btn-active { background: #2563eb; border-color: #3b82f6; }
+  </style>
+</head>
+<body>
+
+  <div class="ui-panel">
+    <label>Source centrale :
+      <select id="sourceSelect">
+        <option value="none">Aucune </option>
+        <option value="am241" selected>Américium-241 (Alpha α)</option>
+        <option value="sr90">Strontium-90 (Bêta β-)</option>
+        <option value="co60">Cobalt-60 (Gamma / β-)</option>
+        <option value="u238">Uranium naturel (α + β)</option>
+        <option value="ra226">Radium-226 (Mixte α + β)</option>
+      </select>
+    </label>
+
+    <label>Activité : 
+      <input type="range" id="activitySlider" min="0" max="10" value="3" oninput="document.getElementById('actVal').innerText=this.value>0 ? this.value+' Bq' : 'OFF'">
+    </label>
+    <span id="actVal">3 Bq</span>
+
+    |
+
+    <button id="cosmicBtn" onclick="toggleCosmic()">Rayons Cosmiques (μ) : OFF</button>
+
+    |
+
+    <label>Champ B : 
+      <input type="range" id="bSlider" min="-50" max="50" value="20" oninput="document.getElementById('bVal').innerText=this.value+' T'">
+    </label>
+    <span id="bVal">20 T</span>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    let particles = [];
+    let droplets = [];
+    let cosmicActive = false;
+
+    function setup() {
+      let canvas = createCanvas(800, 550);
+      canvas.parent('canvas-container');
+    }
+
+    function draw() {
+      background(10, 15, 25);
+
+      let source = document.getElementById('sourceSelect').value;
+      let activity = parseInt(document.getElementById('activitySlider').value);
+
+      // 1. Dessin du plot de la source
+      if (source !== 'none') {
+        drawSource();
+      }
+
+      // 2. Émission depuis la source radioactive
+      if (source !== 'none' && activity > 0 && frameCount % floor(60 / activity) === 0) {
+        if (source === 'am241') {
+          spawnFromSource('alpha');
+        } else if (source === 'sr90') {
+          spawnFromSource('beta');
+        } else if (source === 'co60') {
+          spawnFromSource('beta');
+        } else if (source === 'u238') {
+          spawnFromSource(random() > 0.15 ? 'alpha' : 'beta');
+        } else if (source === 'ra226') {
+          spawnFromSource(random() > 0.3 ? 'alpha' : 'beta');
+        }
+      }
+
+      // 3. Émission omnidirectionnelle des rayons cosmiques
+      if (cosmicActive && frameCount % 12 === 0) {
+        spawnCosmic();
+      }
+
+      let B_field = parseFloat(document.getElementById('bSlider').value);
+
+      // 4. Rendu des gouttelettes
+      for (let i = droplets.length - 1; i >= 0; i--) {
+        droplets[i].update();
+        droplets[i].draw();
+        if (droplets[i].isDead()) droplets.splice(i, 1);
+      }
+
+      // 5. Rendu des trajectoires
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.update(B_field);
+        if (!p.active) particles.splice(i, 1);
+      }
+
+      fill(255, 150);
+      noStroke();
+      textSize(12);
+      text(`Gouttes actives : ${droplets.length}`, 15, height - 15);
+    }
+
+    function drawSource() {
+      let cx = width / 2;
+      let cy = height / 2;
+
+      noStroke();
+      fill(255, 200, 0, 30);
+      circle(cx, cy, 32);
+
+      fill(100, 110, 120);
+      stroke(150);
+      strokeWeight(1);
+      circle(cx, cy, 18);
+
+      noStroke();
+      fill(239, 68, 68);
+      circle(cx, cy, 8);
+    }
+
+    function spawnFromSource(type) {
+      // Énergie augmentée pour rallonger les traces alpha (~1,8x plus longues)
+      let energy = (type === 'alpha') ? 150 : 60;
+      particles.push(new Particle(type, width / 2, height / 2, random(TWO_PI), energy));
+    }
+
+    function spawnCosmic() {
+      // Génération sur l'un des 4 bords du cadre
+      let side = floor(random(4));
+      let x, y, angle;
+      
+      if (side === 0) {        // Haut -> tire vers le bas
+        x = random(width); y = 0; angle = random(PI/4, 3*PI/4);
+      } else if (side === 1) { // Droite -> tire vers la gauche
+        x = width; y = random(height); angle = random(3*PI/4, 5*PI/4);
+      } else if (side === 2) { // Bas -> tire vers le haut
+        x = random(width); y = height; angle = random(5*PI/4, 7*PI/4);
+      } else {                 // Gauche -> tire vers la droite
+        x = 0; y = random(height); angle = random(-PI/4, PI/4);
+      }
+
+      particles.push(new Particle('muon', x, y, angle, 160));
+    }
+
+    function toggleCosmic() {
+      cosmicActive = !cosmicActive;
+      let btn = document.getElementById('cosmicBtn');
+      if (cosmicActive) {
+        btn.innerText = 'Rayons Cosmiques (μ) : ON';
+        btn.classList.add('btn-active');
+      } else {
+        btn.innerText = 'Rayons Cosmiques (μ) : OFF';
+        btn.classList.remove('btn-active');
+      }
+    }
+
+    class Particle {
+      constructor(type, x, y, angle, energy) {
+        this.type = type;
+        this.pos = createVector(x, y);
+        this.initialEnergy = energy;
+        this.energy = energy;
+
+        if (type === 'alpha') {
+          this.charge = 2;
+          this.mass = 300;
+          this.scattering = 0.005;
+        } else if (type === 'beta') {
+          this.charge = -1;
+          this.mass = 1;
+          this.scattering = 0.15;
+        } else if (type === 'muon') {
+          this.charge = random() > 0.5 ? 1 : -1;
+          this.mass = 80;
+          this.scattering = 0.001;
+        }
+
+        let speed = sqrt((2 * this.energy) / this.mass);
+        this.vel = p5.Vector.fromAngle(angle).mult(speed);
+        this.active = true;
+      }
+
+      update(B) {
+        if (!this.active || this.energy <= 0) {
+          this.active = false;
+          return;
+        }
+
+        let perp = createVector(-this.vel.y, this.vel.x).normalize();
+        let speed = this.vel.mag();
+        let accelMag = (this.charge * B * speed * 0.04) / this.mass;
+        this.vel.add(perp.mult(accelMag));
+
+        if (this.scattering > 0) {
+          this.vel.rotate(random(-this.scattering, this.scattering));
+        }
+
+        // Taux de perte d'énergie dE/dx ajusté pour les alpha
+        let dE = 0;
+        if (this.type === 'alpha') {
+          dE = 0.55 / sqrt((this.energy / this.initialEnergy) + 0.05);
+        } else if (this.type === 'beta') {
+          dE = 0.35;
+        } else if (this.type === 'muon') {
+          dE = 0.15;
+        }
+
+        this.energy -= dE;
+
+        if (this.energy <= 0) {
+          this.active = false;
+        } else {
+          this.vel.setMag(sqrt((2 * max(0, this.energy)) / this.mass));
+        }
+
+        this.pos.add(this.vel);
+
+        let count = (this.type === 'alpha') ? 3 : 1;
+        for (let i = 0; i < count; i++) {
+          let offset = p5.Vector.random2D().mult(random(0, 2));
+          let dropPos = p5.Vector.add(this.pos, offset);
+          let radius = (this.type === 'alpha') ? random(3, 6) : (this.type === 'beta' ? random(1, 2) : random(2, 3.5));
+          
+          if (this.type === 'alpha' && this.energy < this.initialEnergy * 0.25) {
+            radius *= 2.2;
+          }
+
+          droplets.push(new Droplet(dropPos.x, dropPos.y, radius, this.type));
+        }
+
+        if (this.pos.x < 0 || this.pos.x > width || this.pos.y < 0 || this.pos.y > height) {
+          this.active = false;
+        }
+      }
+    }
+
+    class Droplet {
+      constructor(x, y, r, type) {
+        this.x = x;
+        this.y = y;
+        this.r = r;
+        this.type = type;
+        this.alpha = 220;
+        this.fadeRate = random(1.2, 2.5);
+        this.driftY = random(0.05, 0.15);
+      }
+
+      update() {
+        this.alpha -= this.fadeRate;
+        this.y += this.driftY;
+      }
+
+      draw() {
+        noStroke();
+        fill(240, 245, 255, this.alpha);
+        circle(this.x, this.y, this.r * 2);
+      }
+
+      isDead() {
+        return this.alpha <= 0;
+      }
+    }
+  </script>
+</body>
+</html>
