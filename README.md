@@ -31,4 +31,4 @@ Because this is a standalone single-file project, no node modules or build proce
 
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/thomasrblaise-ui/NOM-DE-TON-DEPOT.git](https://github.com/thomasrblaise-ui/NOM-DE-TON-DEPOT.git)
+   git clone [https://github.com/thomasrblaise-ui/Cloud-chamber-1.0.git](https://github.com/thomasrblaise-ui/Cloud-chamber-1.0.git)
