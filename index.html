@@ -74,11 +74,11 @@
         </label>
         <select id="sourceSelect" class="w-full bg-slate-800 text-slate-100 border border-slate-700 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer">
           <option value="none">Aucune </option>
-          <option value="u238" selected>Uranium-238 (Alpha α + Bêta β-) </option>
+          <option value="u238" selected>Uranium-238 (Alpha α + Gamma γ)</option>
           <option value="sr90">Strontium-90 (Bêta β-)</option>
           <option value="co60">Cobalt-60 (Bêta β- + Gamma γ)</option>
-          <option value="am241">Americium-241 (Alpha α)</option>
-          <option value="ra226">Radium-226 (Alpha α + Bêta β-)</option>
+          <option value="am241">Americium-241 (Alpha α + Gamma γ)</option>
+          <option value="ra226">Radium-226 (Alpha α + Bêta β- + Gamma γ)</option>
         </select>
       </div>
 
@@ -279,7 +279,8 @@
         } else if (source === 'co60') {
           spawnFromSource('beta');
         } else if (source === 'u238') {
-          spawnFromSource(random() > 0.2 ? 'alpha' : 'beta');
+          // Uranium-238 corrigé : émetteur alpha pur
+          spawnFromSource('alpha');
         } else if (source === 'ra226') {
           spawnFromSource(random() > 0.35 ? 'alpha' : 'beta');
         }
